@@ -10,16 +10,12 @@ import random
 import numpy as np
 
 model_names = sorted(name for name in torchvision.models.__dict__
-    if name.islower() and not name.startswith("__")
-    and callable(torchvision.models.__dict__[name]))
+                     if name.islower() and not name.startswith("__")
+                     and callable(torchvision.models.__dict__[name]))
 
 
 class Tester(unittest.TestCase):
-    def test_init(self):
-        """Basic test to make sure that __init__ works for each of the models"""
-
-        for name in model_names:
-            model = torchvision.models.__dict__[name]()
+    # TODO: there should be tests for GPU and pretrained weights
 
     def test_forward_during_training(self):
         """Evaluate the model at training time, and check that the output has the right shape and no nans."""
