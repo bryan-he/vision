@@ -1,5 +1,15 @@
-import torch.nn as nn
 import math
+import torch.nn as nn
+import torch.utils.model_zoo as model_zoo
+
+
+__all__ = ['MobileNetV2', 'mobilenet_v2']
+
+
+model_urls = {
+    # TODO
+    'mobilenet_v2': 'https://download.pytorch.org/models/inception_v3_google-1a9a5a14.pth',
+}
 
 
 def conv_bn(inp, oup, stride):
@@ -60,21 +70,10 @@ class InvertedResidual(nn.Module):
 
 
 class MobileNetV2(nn.Module):
-    def __init__(self, n_class=1000, input_size=224, width_mult=1.):
+    def __init__(self, block, inverted_residual_setting, n_class=1000, input_size=224, width_mult=1.):
         super(MobileNetV2, self).__init__()
-        block = InvertedResidual
         input_channel = 32
         last_channel = 1280
-        interverted_residual_setting = [
-            # t, c, n, s
-            [1, 16, 1, 1],
-            [6, 24, 2, 2],
-            [6, 32, 3, 2],
-            [6, 64, 4, 2],
-            [6, 96, 3, 1],
-            [6, 160, 3, 2],
-            [6, 320, 1, 1],
-        ]
 
         # building first layer
         assert input_size % 32 == 0
@@ -82,7 +81,7 @@ class MobileNetV2(nn.Module):
         self.last_channel = int(last_channel * width_mult) if width_mult > 1.0 else last_channel
         self.features = [conv_bn(3, input_channel, 2)]
         # building inverted residual blocks
-        for t, c, n, s in interverted_residual_setting:
+        for t, c, n, s in inverted_residual_setting:
             output_channel = int(c * width_mult)
             for i in range(n):
                 if i == 0:
@@ -123,3 +122,26 @@ class MobileNetV2(nn.Module):
                 n = m.weight.size(1)
                 m.weight.data.normal_(0, 0.01)
                 m.bias.data.zero_()
+
+
+def mobilenet_v2(pretrained=False, **kwargs):
+    """MobileNetV2 model architecture from
+    `"MobileNetV2: Inverted Residuals and Linear Bottlenecks" <https://arxiv.org/pdf/1801.04381.pdf>`_.
+
+    Args:
+        pretrained (bool): If True, returns a model pre-trained on ImageNet
+    """
+    inverted_residual_setting = [
+        # t, c, n, s
+        [1, 16, 1, 1],
+        [6, 24, 2, 2],
+        [6, 32, 3, 2],
+        [6, 64, 4, 2],
+        [6, 96, 3, 1],
+        [6, 160, 3, 2],
+        [6, 320, 1, 1],
+    ]
+    model = MobileNetV2(InvertedResidual, inverted_residual_setting, **kwargs)
+    if pretrained:
+        model.load_state_dict(model_zoo.load_url(model_urls['']))
+    return model
