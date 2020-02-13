@@ -47,6 +47,7 @@ test:
     - mock
     - av
     - ca-certificates
+    {{ environ.get('CONDA_TYPING_CONSTRAINT') }}
   commands:
     pytest .
 

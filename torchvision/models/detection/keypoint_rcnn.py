@@ -2,6 +2,7 @@ import torch
 from torch import nn
 
 from torchvision.ops import misc as misc_nn_ops
+
 from torchvision.ops import MultiScaleRoIAlign
 
 from ..utils import load_state_dict_from_url
@@ -101,6 +102,7 @@ class KeypointRCNN(FasterRCNN):
 
     Example::
 
+        >>> import torch
         >>> import torchvision
         >>> from torchvision.models.detection import KeypointRCNN
         >>> from torchvision.models.detection.rpn import AnchorGenerator
@@ -125,17 +127,17 @@ class KeypointRCNN(FasterRCNN):
         >>> # use to perform the region of interest cropping, as well as
         >>> # the size of the crop after rescaling.
         >>> # if your backbone returns a Tensor, featmap_names is expected to
-        >>> # be [0]. More generally, the backbone should return an
+        >>> # be ['0']. More generally, the backbone should return an
         >>> # OrderedDict[Tensor], and in featmap_names you can choose which
         >>> # feature maps to use.
-        >>> roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=[0],
+        >>> roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=['0'],
         >>>                                                 output_size=7,
         >>>                                                 sampling_ratio=2)
         >>>
-        >>> keypoint_roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=[0],
+        >>> keypoint_roi_pooler = torchvision.ops.MultiScaleRoIAlign(featmap_names=['0'],
         >>>                                                          output_size=14,
         >>>                                                          sampling_ratio=2)
-        >>> # put the pieces together inside a FasterRCNN model
+        >>> # put the pieces together inside a KeypointRCNN model
         >>> model = KeypointRCNN(backbone,
         >>>                      num_classes=2,
         >>>                      rpn_anchor_generator=anchor_generator,
@@ -179,7 +181,7 @@ class KeypointRCNN(FasterRCNN):
 
         if keypoint_roi_pool is None:
             keypoint_roi_pool = MultiScaleRoIAlign(
-                featmap_names=[0, 1, 2, 3],
+                featmap_names=['0', '1', '2', '3'],
                 output_size=14,
                 sampling_ratio=2)
 
@@ -252,14 +254,17 @@ class KeypointRCNNPredictor(nn.Module):
     def forward(self, x):
         x = self.kps_score_lowres(x)
         x = misc_nn_ops.interpolate(
-            x, scale_factor=self.up_scale, mode="bilinear", align_corners=False
+            x, scale_factor=float(self.up_scale), mode="bilinear", align_corners=False
         )
         return x
 
 
 model_urls = {
-    'keypointrcnn_resnet50_fpn_coco':
+    # legacy model for BC reasons, see https://github.com/pytorch/vision/issues/1606
+    'keypointrcnn_resnet50_fpn_coco_legacy':
         'https://download.pytorch.org/models/keypointrcnn_resnet50_fpn_coco-9f466800.pth',
+    'keypointrcnn_resnet50_fpn_coco':
+        'https://download.pytorch.org/models/keypointrcnn_resnet50_fpn_coco-fc266e95.pth',
 }
 
 
@@ -294,12 +299,17 @@ def keypointrcnn_resnet50_fpn(pretrained=False, progress=True,
         - scores (``Tensor[N]``): the scores or each prediction
         - keypoints (``FloatTensor[N, K, 3]``): the locations of the predicted keypoints, in ``[x, y, v]`` format.
 
+    Keypoint R-CNN is exportable to ONNX for a fixed batch size with inputs images of fixed size.
+
     Example::
 
         >>> model = torchvision.models.detection.keypointrcnn_resnet50_fpn(pretrained=True)
         >>> model.eval()
         >>> x = [torch.rand(3, 300, 400), torch.rand(3, 500, 400)]
         >>> predictions = model(x)
+        >>>
+        >>> # optionally, if you want to export the model to ONNX:
+        >>> torch.onnx.export(model, x, "keypoint_rcnn.onnx", opset_version = 11)
 
     Arguments:
         pretrained (bool): If True, returns a model pre-trained on COCO train2017
@@ -311,7 +321,10 @@ def keypointrcnn_resnet50_fpn(pretrained=False, progress=True,
     backbone = resnet_fpn_backbone('resnet50', pretrained_backbone)
     model = KeypointRCNN(backbone, num_classes, num_keypoints=num_keypoints, **kwargs)
     if pretrained:
-        state_dict = load_state_dict_from_url(model_urls['keypointrcnn_resnet50_fpn_coco'],
+        key = 'keypointrcnn_resnet50_fpn_coco'
+        if pretrained == 'legacy':
+            key += '_legacy'
+        state_dict = load_state_dict_from_url(model_urls[key],
                                               progress=progress)
         model.load_state_dict(state_dict)
     return model
